@@ -24,6 +24,8 @@ object Constants{
     const val password = "password"
     const val fileName = "fileName"
     const val userId = "userId"
+    const val fileId = "fileId"
+    const val file_not_found = "file_not_found"
     //DB strings
     const val token = "token"
     const val file_name = "file_name"
@@ -45,4 +47,8 @@ object Constants{
     const val upload_valid_file = "Please upload valid file!"
     const val missing_file_name = "Missing file name in path!"
     const val application_octet_stream = "application/octet-stream"
+    const val no_file_available = "No file available!"
+    const val file_name_missing = "File name missing!"
+    const val deleted = "Deleted!"
+    const val not_found = "Not found!!"
 }

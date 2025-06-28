@@ -19,12 +19,11 @@ import org.kotlinbackend.db.Files
 import org.kotlinbackend.db.RefreshTokens
 import org.kotlinbackend.db.Users
 import org.kotlinbackend.models.request.User
-import org.kotlinbackend.models.response.FileResponse
+import org.kotlinbackend.models.response.ServerResponse
 import org.kotlinbackend.utils.Constants
 import org.kotlinbackend.utils.Constants.application_octet_stream
 import org.kotlinbackend.utils.Constants.invalid_refresh_token
 import org.kotlinbackend.utils.Constants.logged_out
-import org.kotlinbackend.utils.Constants.missing_file_name
 import org.kotlinbackend.utils.Constants.refresh_token_missing
 import org.kotlinbackend.utils.Constants.server_running
 import org.kotlinbackend.utils.Constants.signup_succesful
@@ -33,8 +32,10 @@ import org.kotlinbackend.utils.Constants.userId
 import org.kotlinbackend.utils.Constants.user_exists
 import org.kotlinbackend.utils.Constants.username
 import org.kotlinbackend.utils.Endpoints
-import org.kotlinbackend.utils.Endpoints.refresh
 import org.kotlinbackend.utils.Endpoints.signup
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 fun Application.initRoutes() {
     routing {
@@ -88,8 +89,7 @@ fun Application.initRoutes() {
                 call.respondText(text=Constants.invalid_credentials,status = HttpStatusCode.Forbidden)
             }
         }
-
-        post(refresh) {
+        post(Endpoints.refresh) {
             val request = call.receive<Map<String, String>>()
             val refreshToken = request[Constants.refreshToken]
             if (refreshToken == null) {
@@ -143,7 +143,7 @@ fun Application.initRoutes() {
                 val principal = call.principal<JWTPrincipal>()
                 val username = principal!!.payload.getClaim(username).asString()
 
-                call.respondText("Welcome $username! This is your profile.")
+                call.respond(status= HttpStatusCode.OK, ServerResponse(message="Welcome $username! This is your profile."))
             }
         }
 
@@ -152,9 +152,7 @@ fun Application.initRoutes() {
             post(Endpoints.upload) {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal!!.payload.getClaim(userId).asInt()
-
                 val multipart = call.receiveMultipart()
-
                 var fileName: String? = null
                 var contentType: String? = null
                 var fileContent: ByteArray? = null
@@ -181,7 +179,7 @@ fun Application.initRoutes() {
                             it[Files.uploadedBy] = userId
                         }
                     }
-                    call.respondText("File '$fileName' uploaded with User ID $userId.")
+                    call.respond(status = HttpStatusCode.OK, ServerResponse(message="File '$fileName' uploaded!"))
                 } else {
                     call.respond(HttpStatusCode.BadRequest, upload_valid_file)
                 }
@@ -192,7 +190,7 @@ fun Application.initRoutes() {
                 val fileNameParam = call.request.queryParameters[Constants.fileName]
 
                 if (fileNameParam.isNullOrBlank()) {
-                    call.respond(HttpStatusCode.BadRequest, missing_file_name)
+                    call.respond(HttpStatusCode.BadRequest, ServerResponse(message = Constants.missing_file_name))
                     return@get
                 }
 
@@ -201,9 +199,9 @@ fun Application.initRoutes() {
                 }
 
                 if (fileExists) {
-                    call.respondText("✅ File '$fileNameParam' exists on server.")
+                    call.respond(status = HttpStatusCode.OK, message = ServerResponse(message = "✅ File '$fileNameParam' exists on server!"))
                 } else {
-                    call.respond(HttpStatusCode.NotFound, "❌ File '$fileNameParam' not found on server!")
+                    call.respond(HttpStatusCode.NotFound, ServerResponse(message = "❌ File '$fileNameParam' not found on server!"))
                 }
             }
             get(Endpoints.home) {
@@ -240,7 +238,7 @@ fun Application.initRoutes() {
 
                 val userFiles = transaction {
                     Files.select { Files.uploadedBy eq userId }.map {
-                        FileResponse(
+                        ServerResponse(
                             id = it[Files.id].value,  // ✅ Int
                             fileName = it[Files.fileName],
                             contentType = it[Files.contentType],
@@ -248,7 +246,95 @@ fun Application.initRoutes() {
                         )
                     }
                 }
-                call.respond(userFiles.toString())
+                call.respond(userFiles)
+            }
+        }
+        authenticate(Constants.authJwt) {
+            get(Endpoints.download_file) {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal!!.payload.getClaim(Constants.userId).asInt()
+                val fileName = call.request.queryParameters[Constants.fileName]
+                if (fileName == null) {
+                    call.respond(HttpStatusCode.BadRequest, ServerResponse(message = Constants.file_not_found))
+                    return@get
+                }
+
+                val fileRow = transaction {
+                    Files.select {
+                        (Files.fileName eq fileName) and (Files.uploadedBy eq userId)
+                    }.singleOrNull()
+                }
+
+                if (fileRow == null) {
+                    call.respond(HttpStatusCode.NotFound, ServerResponse(message = Constants.file_not_found))
+                    return@get
+                }
+
+                val contentType = fileRow[Files.contentType]
+                val fileData = fileRow[Files.fileData]
+
+                call.response.header(
+                    HttpHeaders.ContentDisposition,
+                    "attachment; filename=\"$fileName\""
+                )
+
+                call.respondBytes(fileData, ContentType.parse(contentType))
+            }
+        }
+        authenticate(Constants.authJwt) { get(Endpoints.download_all_files) {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal!!.payload.getClaim(Constants.userId).asInt()
+            val username = transaction {
+                Users.select { Users.id eq userId }
+                    .singleOrNull()
+                    ?.get(Users.username)
+            } ?: "user"
+            val userFiles = transaction {
+                Files.select { Files.uploadedBy eq userId }.toList()
+            }
+
+            if (userFiles.isEmpty()) {
+                call.respond(HttpStatusCode.NotFound, ServerResponse(message = Constants.no_file_available))
+                return@get
+            }
+            val zipBytes = ByteArrayOutputStream().use { baos ->
+                ZipOutputStream(baos).use { zos ->
+                    userFiles.forEach { fileRow ->
+                        val fileName = fileRow[Files.fileName]
+                        val fileData = fileRow[Files.fileData]
+                        val zipEntry = ZipEntry(fileName)
+                        zos.putNextEntry(zipEntry)
+                        zos.write(fileData)
+                        zos.closeEntry()
+                    }
+                }
+                baos.toByteArray()
+            }
+            call.response.header(
+                HttpHeaders.ContentDisposition,
+                "attachment; filename=\"${username}_files.zip\""
+            )
+            call.respondBytes(zipBytes, ContentType.Application.Zip)
+        } }
+        authenticate(Constants.authJwt) {
+            delete(Endpoints.delete_file) {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal!!.payload.getClaim(Constants.userId).asInt()
+                val fileName = call.request.queryParameters[Constants.fileName]
+                if (fileName.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ServerResponse(message = Constants.file_name_missing))
+                    return@delete
+                }
+                val rowsDeleted = transaction {
+                    Files.deleteWhere {
+                        (Files.fileName eq fileName) and (Files.uploadedBy eq userId)
+                    }
+                }
+                if (rowsDeleted > 0) {
+                    call.respond(HttpStatusCode.OK, ServerResponse(fileName=fileName, message = Constants.deleted))
+                } else {
+                    call.respond(HttpStatusCode.NotFound, ServerResponse(fileName=fileName, message = Constants.not_found))
+                }
             }
         }
     }
