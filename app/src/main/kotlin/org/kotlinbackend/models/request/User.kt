@@ -1,4 +1,5 @@
-package org.kotlinbackend.models
+package org.kotlinbackend.models.request
+
 import kotlinx.serialization.Serializable
 
 @Serializable

@@ -9,6 +9,7 @@ import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.kotlinbackend.config.installPlugins
+import org.kotlinbackend.db.Files
 import org.kotlinbackend.db.RefreshTokens
 import org.kotlinbackend.db.Users
 import org.kotlinbackend.routes.initRoutes
@@ -45,8 +46,7 @@ fun initDatabase(){
 
 fun createTables() {
     transaction {
-        SchemaUtils.create(Users)
-        SchemaUtils.create(RefreshTokens)
-        println(created_table + "Users, RefreshTokens")
+        SchemaUtils.create(Users, RefreshTokens, Files)
+        println(created_table + "Users, RefreshTokens, Files")
     }
 }

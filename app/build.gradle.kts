@@ -16,21 +16,17 @@ plugins {
 repositories {
     // Use Maven Central for resolving dependencies.
     mavenCentral()
-    maven("https://maven.pkg.jetbrains.space/public/p/exposed/maven")
+    maven { url = uri("https://maven.pkg.jetbrains.space/public/p/exposed/maven") }
 }
 
 dependencies {
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-
     // Use the JUnit 5 integration.
     testImplementation(libs.junit.jupiter.engine)
-
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-
     // This dependency is used by the application.
     implementation(libs.guava)
-
     //Ktor server
      implementation("io.ktor:ktor-server-netty:2.3.9")
     implementation("io.ktor:ktor-server-core:2.3.9")
@@ -41,20 +37,16 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:2.3.9")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.9")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-
     //Exposed ORM
     implementation("org.jetbrains.exposed:exposed-core:0.45.0")
     implementation("org.jetbrains.exposed:exposed-dao:0.45.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.45.0")
-
+    implementation("org.jetbrains.exposed:exposed-java-time:0.45.0")
     //Connection pool
     implementation("com.zaxxer:HikariCP:5.1.0")
-
     //JDBC postgre driver
     implementation("org.postgresql:postgresql:42.7.1")
-
-
-    //JWT token
+    //JWT & Auth
     implementation("io.ktor:ktor-server-auth:2.3.9")
     implementation("io.ktor:ktor-server-auth-jwt:2.3.9")
 }

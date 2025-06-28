@@ -11,6 +11,7 @@ import io.ktor.server.sessions.*
 import kotlinx.serialization.json.Json
 import org.kotlinbackend.auth.JwtConfig
 import org.kotlinbackend.models.UserSession
+import org.kotlinbackend.utils.Constants
 import org.kotlinbackend.utils.Constants.USER_SESSION
 import org.kotlinbackend.utils.Constants.authJwt
 import org.slf4j.event.Level
@@ -40,7 +41,7 @@ fun Application.installPlugins() {
         jwt(authJwt) {
             verifier(JwtConfig.getVerifier())
             validate { credential ->
-                if (credential.payload.getClaim("username").asString().isNotEmpty()) {
+                if (credential.payload.getClaim(Constants.username).asString().isNotEmpty()) {
                     JWTPrincipal(credential.payload)
                 } else null
             }

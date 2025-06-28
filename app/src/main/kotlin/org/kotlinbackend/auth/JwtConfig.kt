@@ -3,6 +3,8 @@ package org.kotlinbackend.auth
 import com.auth0.jwt.JWT
 import com.auth0.jwt.JWTVerifier
 import com.auth0.jwt.algorithms.Algorithm
+import org.kotlinbackend.utils.Constants
+import org.kotlinbackend.utils.Constants.userId
 import java.util.*
 
 object JwtConfig {
@@ -14,16 +16,18 @@ object JwtConfig {
 
     private val algorithm = Algorithm.HMAC256(secret)
 
-    fun generateAccessToken(username: String): String = JWT.create()
+    fun generateAccessToken(userId:Int,username: String): String = JWT.create()
         .withAudience(audience)
         .withIssuer(issuer)
-        .withClaim("username", username)
+        .withClaim(Constants.userId, userId)
+        .withClaim(Constants.username, username)
         .withExpiresAt(Date(System.currentTimeMillis() + accessTokenExpiry)) // 15 min expiry
         .sign(algorithm)
 
-    fun generateRefreshToken(username: String): String = JWT.create()
+    fun generateRefreshToken(userId:Int,username: String): String = JWT.create()
         .withAudience(audience)
         .withIssuer(issuer)
+        .withClaim(Constants.userId, userId)
         .withClaim("username", username)
         .withExpiresAt(Date(System.currentTimeMillis() + refreshTokenExpiry)) // 7 days
         .sign(algorithm)
